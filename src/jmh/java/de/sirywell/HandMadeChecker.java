@@ -35,7 +35,10 @@ public class HandMadeChecker implements JLSCorrectnessChecker {
                 case '.':
                 case '<':
                 case '>':
-                    if (isKeyword(name.substring(start, i))) return false;
+                    if (expectNextClosing) { // unexpected here
+                        return false;
+                    }
+                    if (isKeyword(name.substring(start, i))) return false; // keyword -> not allowed
                     start = i + 1; // skip this special char
                     break;
                 case '[':
@@ -45,13 +48,9 @@ public class HandMadeChecker implements JLSCorrectnessChecker {
                     if (expectNextClosing) {
                         expectNextClosing = false;
                     } else {
-                        return false; // [] are only allowed to occur directly after each other
+                        return false; // [] are only allowed to occur directly after each other -> not allowed
                     }
                     break;
-                case '@':
-                    break;
-                case '?': // wildcard, not allowed
-                    return false;
                 default: // if we come across an illegal java identifier char here, it's not valid at all
                     if (start == i) {
                         if (!Character.isJavaIdentifierStart(name.charAt(i))) {
@@ -62,7 +61,17 @@ public class HandMadeChecker implements JLSCorrectnessChecker {
                             return false;
                         }
                     }
+                    // fall through, do that check too
+                case '@': // from instance string?, allowed
+                case '?': // wildcard, allowed
+                    if (expectNextClosing) {
+                        return false;
+                    }
+                    break; // ignore those chars
             }
+        }
+        if (expectNextClosing) {
+            return false; // a single [ is invalid
         }
         if (start < name.length()) {
             return !isKeyword(name.substring(start));
