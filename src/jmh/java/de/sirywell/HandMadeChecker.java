@@ -3,6 +3,7 @@ package de.sirywell;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import spoon.Launcher;
+import spoon.SpoonException;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -19,40 +20,42 @@ public class HandMadeChecker implements JLSCorrectnessChecker {
     private static final Collection<String> java5Keywords = Stream.of("enum").collect(Collectors.toCollection(HashSet::new));
     private static final Collection<String> java9Keywords = Stream.of("_").collect(Collectors.toCollection(HashSet::new));
 
-    private void checkIdentiferForJLSCorrectness(String simplename) {
-        if (isEmptyOrLocalOrGeneric(simplename)) return;
+    private void checkIdentifierForJLSCorrectness(String simplename) {
+        if (isSpecialType(simplename)) return;
         if (!checkAll(simplename)) {
-            throw new spoon.SpoonException("Not allowed javaletter or keyword in identifier found. See JLS for correct identifier. Identifier: " + simplename);
+            throw new SpoonException("Not allowed javaletter or keyword in identifier found. See JLS for correct identifier. Identifier: " + simplename);
         }
     }
 
     private boolean checkAll(String name) {
-        int start = 0;
-        int i;
-        boolean expectNextClosing = false;
-        for (i = 0; i < name.length(); i++) {
+        int i = 0;
+        // leading digits come from anonymous/local classes. Skip them
+        while (i < name.length() && Character.isDigit(name.charAt(i))) {
+            i++;
+        }
+        int start = i;
+        char expectNext = 0; // 0 = do not expect anything
+        for (; i < name.length(); i++) {
+            if (expectNext != 0) {
+                if (name.charAt(i) != expectNext) {
+                    return false;
+                } else if (name.charAt(i) == expectNext) {
+                    expectNext = 0; // reset
+                    continue; // skip it, no further checks required
+                }
+            }
             switch (name.charAt(i)) {
                 case '.':
                 case '<':
                 case '>':
-                    if (expectNextClosing) { // unexpected here
-                        return false;
-                    }
                     if (isKeyword(name.substring(start, i))) return false; // keyword -> not allowed
                     start = i + 1; // skip this special char
                     break;
                 case '[':
-                    expectNextClosing = true;
-                    break;
-                case ']':
-                    if (expectNextClosing) {
-                        expectNextClosing = false;
-                    } else {
-                        return false; // [] are only allowed to occur directly after each other -> not allowed
-                    }
+                    expectNext = ']'; // next char *must* close
                     break;
                 default: // if we come across an illegal java identifier char here, it's not valid at all
-                    if (start == i) {
+                    if (start == i) { // first char of a part
                         if (!Character.isJavaIdentifierStart(name.charAt(i))) {
                             return false;
                         }
@@ -61,17 +64,11 @@ public class HandMadeChecker implements JLSCorrectnessChecker {
                             return false;
                         }
                     }
-                    // fall through, do that check too
-                case '@': // from instance string?, allowed
-                case '?': // wildcard, allowed
-                    if (expectNextClosing) {
-                        return false;
-                    }
-                    break; // ignore those chars
+                    break;
             }
         }
-        if (expectNextClosing) {
-            return false; // a single [ is invalid
+        if (expectNext != 0) {
+            return false; // expected something that didn't appear anymore
         }
         if (start < name.length()) {
             return !isKeyword(name.substring(start));
@@ -79,9 +76,9 @@ public class HandMadeChecker implements JLSCorrectnessChecker {
         return true;
     }
 
-    private static boolean isEmptyOrLocalOrGeneric(String identifier) {
+    private static boolean isSpecialType(String identifier) {
         return identifier.isEmpty()
-                || Character.isDigit(identifier.charAt(0))
+                || "?".equals(identifier) // is wildcard
                 || (identifier.startsWith("<") && identifier.endsWith(">"));
     }
 
@@ -115,6 +112,6 @@ public class HandMadeChecker implements JLSCorrectnessChecker {
 
     @Override
     public void checkForCorrectness(String name) {
-        checkIdentiferForJLSCorrectness(name);
+        checkIdentifierForJLSCorrectness(name);
     }
 }

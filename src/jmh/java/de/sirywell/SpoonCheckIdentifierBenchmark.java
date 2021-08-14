@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
 public class SpoonCheckIdentifierBenchmark {
 
     // some (valid) parameters we want to test performance with
-    @Param({"Hi<T.R>[]@", "HelloWorld", "VeryLongValidKeyword123<A.B.C.D.E.F>[][][]@"})
+    @Param({"Hi<T.R>[]", "HelloWorld", "VeryLongValidKeyword123<A.B.C.D.E.F>[][][]"})
     private String stringToCheck;
 
     @Benchmark
